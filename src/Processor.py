@@ -1,28 +1,111 @@
+import uuid
+import os
+import tempfile
+from multiprocessing import Process
+from ScannerResult import ScannerResult
+from CSVFileUtils import CSVFileUtil
+from MailSender import MailHelper
+
 from loguru import logger
 from ConfigReader import ConfigurationReader
 from DataBaseConnector import DataBaseConnector
 
+
 class ScanProcessor:
-    global primaryDB
-    global localDB
-    global secondaryDB
-    def initProcessor(self):
-        logger.info("Sync Scanner started ")
+  
+    def __init__(self):
+         self.primaryDB =None
+         self.secondaryDB =None
+         self.processUUID =None
+         self.localDB =None
+         self.csvFileName = None
+
+    def getSecondaryDBValue(self,key, secondaryDBResult):
+        for res in secondaryDBResult:
+            for tempKey,value in res.items():
+                if(tempKey == key):
+                 # print(tempKey,'=========>',value)
+                  return value
+            return None
+        
+    def trigger_process(self,core):
+        logger.info('Syn '+ core.get('core_name') +" core started " )
         try:
-            readerObj = ConfigurationReader() 
-            primaryDB = DataBaseConnector(readerObj.getConfigValue('PRIMARY_DB', 'HOST'), readerObj.getConfigValue('PRIMARY_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('PRIMARY_DB', 'PASSWORD'),readerObj.getConfigValue('PRIMARY_DB', 'PORT'), readerObj.getConfigValue('PRIMARY_DB', 'DATABASE_NAME')) 
-            
-            secondaryDB = DataBaseConnector(readerObj.getConfigValue('SECONDARY_DB', 'HOST'), readerObj.getConfigValue('SECONDARY_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('SECONDARY_DB', 'PASSWORD'),readerObj.getConfigValue('SECONDARY_DB', 'PORT'), readerObj.getConfigValue('SECONDARY_DB', 'DATABASE_NAME'))
-            
-            localDB = DataBaseConnector(readerObj.getConfigValue('LOCAL_DB', 'HOST'), readerObj.getConfigValue('LOCAL_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('LOCAL_DB', 'PASSWORD'),readerObj.getConfigValue('LOCAL_DB', 'PORT'), readerObj.getConfigValue('LOCAL_DB', 'DATABASE_NAME'))
-            
-            
+            mappingLocation = core.get('mapping_location')
+            csvUtil = CSVFileUtil(mappingLocation)
+            csvData = csvUtil.getCSVfileValue() 
+            primaryQueryStr = core.get('primary_db_query')
+            secondaryQueryStr = core.get('secondary_db_query')
+            primaryDBResult = self.primaryDB._get_scaning_records(core.get('primary_db_query'),core.get('primary_db_primary_key'))
+            secondaryDBResult = self.secondaryDB._get_scaning_records(core.get('secondary_db_query'),core.get('secondary_db_primary_key'))
+            for res in primaryDBResult:
+                for key,value in res.items():
+                    primaryDBValue = value
+                    secondaryDBValue = self.getSecondaryDBValue(key, secondaryDBResult)
+                    if(secondaryDBValue != None):
+                        self.compareValue(csvData, primaryDBValue, secondaryDBValue)
         except Exception as e:
             logger.error(e)
-        finally:
-            primaryDB._close_db_connection()
-            secondaryDB._close_db_connection()
-            localDB._close_db_connection()
+    
+    def compareValue(self, rows, primaryDBValue, secondaryDBValue):
+        try:
+            logger.info("compareValue invokes")
+            for row in rows:
+                counter= int(1)
+                rimaryValue = None
+                secondaryValue= None
+                for col in row:
+                    if counter %2 ==0:
+                        secondaryValue = secondaryDBValue.get(col)
+                    else:
+                        primaryValue = primaryDBValue.get(col)
+                        counter=counter+1
+            
+                if primaryValue != secondaryValue :
+                    logger.critical("Data mismatched ")
+                    scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', self.primaryDB.schemaName ,primaryValue,self.secondaryDB.schemaName,secondaryValue)
+                    self.localDB._insert_Scan_results(scannerResut)
+        except Exception as e:
+            logger.error(e)
+                   
+    def initProcessor(self):
+        self.processUUID = str(uuid.uuid4())
+        logger.info("Sync Scanner started process id "+self.processUUID)
+        try:
+            readerObj = ConfigurationReader() 
+            self.primaryDB = DataBaseConnector(readerObj.getConfigValue('PRIMARY_DB', 'HOST'), readerObj.getConfigValue('PRIMARY_DB', 'USER_NAME'),
+                                          readerObj.getConfigValue('PRIMARY_DB', 'PASSWORD'),readerObj.getConfigValue('PRIMARY_DB', 'PORT'), readerObj.getConfigValue('PRIMARY_DB', 'DATABASE_NAME')) 
+            
+            self.secondaryDB = DataBaseConnector(readerObj.getConfigValue('SECONDARY_DB', 'HOST'), readerObj.getConfigValue('SECONDARY_DB', 'USER_NAME'),
+                                          readerObj.getConfigValue('SECONDARY_DB', 'PASSWORD'),readerObj.getConfigValue('SECONDARY_DB', 'PORT'), readerObj.getConfigValue('SECONDARY_DB', 'DATABASE_NAME'))
+            
+            self.localDB = DataBaseConnector(readerObj.getConfigValue('LOCAL_DB', 'HOST'), readerObj.getConfigValue('LOCAL_DB', 'USER_NAME'),
+                                          readerObj.getConfigValue('LOCAL_DB', 'PASSWORD'),readerObj.getConfigValue('LOCAL_DB', 'PORT'), readerObj.getConfigValue('LOCAL_DB', 'DATABASE_NAME'))
+            
+            coreList = self.localDB._get_db_records(readerObj.getConfigValue('LOCAL_DB', 'CORE_QUERY'))
+            for core in coreList:
+                self.trigger_process(core) 
+            
+            exportDataList = self.localDB._export_scan_results(self.processUUID)
+            if(len(exportDataList) > 0) :
+                tempDir =tempfile.gettempdir()
+                unique_filename = str(uuid.uuid4())
+                self.csvFileName= tempDir+"/"+unique_filename+".csv"
+                CSVFileUtil.writeDataInCsv(self.csvFileName,exportDataList)   
+                MailHelper.sendMailNotification(self.csvFileName ,readerObj)
+            else:
+                logger.info('No Mismatch data found on process '+self.processUUID)
+        except Exception as e:
+            logger.error(e)
+      
+    
+    def destroyProcessor(self): 
+        try:
+            if(self.csvFileName != None):
+                os.remove(self.csvFileName)
+            self.primaryDB._close_db_connection()
+            self.secondaryDB._close_db_connection()
+            self.localDB._close_db_connection()
+            logger.info("Sync Scanner  process id "+self.processUUID +" completed")
+        except Exception as e:
+            logger.error(e)
