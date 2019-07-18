@@ -13,7 +13,8 @@ class DataBaseConnector:
                   host=self.host,
                   user=self.userName,
                   passwd=self.password,
-                  database=self.schemaName)
+                  database=self.schemaName,
+                  port=self.port)
            self._db_cur = self._db_connection.cursor()
            logger.info('database connected with host '+self.host)
            logger.info('Selected database schema name '+self.schemaName)
