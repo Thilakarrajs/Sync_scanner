@@ -24,9 +24,8 @@ class ScanProcessor:
         for res in secondaryDBResult:
             for tempKey,value in res.items():
                 if(tempKey == key):
-                 # print(tempKey,'=========>',value)
-                  return value
-            return None
+                    return value
+        return None
         
     def trigger_process(self,core):
         logger.info('Syn '+ core.get('core_name') +" core started " )
@@ -38,32 +37,46 @@ class ScanProcessor:
             secondaryQueryStr = core.get('secondary_db_query')
             primaryDBResult = self.primaryDB._get_scaning_records(core.get('primary_db_query'),core.get('primary_db_primary_key'))
             secondaryDBResult = self.secondaryDB._get_scaning_records(core.get('secondary_db_query'),core.get('secondary_db_primary_key'))
+            #logger.info(primaryDBResult)
+            #logger.info(secondaryDBResult)
+            processedLine = 1
             for res in primaryDBResult:
+                #logger.info(res)
                 for key,value in res.items():
                     primaryDBValue = value
                     secondaryDBValue = self.getSecondaryDBValue(key, secondaryDBResult)
                     if(secondaryDBValue != None):
-                        self.compareValue(csvData, primaryDBValue, secondaryDBValue)
+                        logger.info('Processed Line : '+str(processedLine) +" with "+ str(key))
+                        processedLine = 1 + processedLine
+                        self.compareValue(csvData, primaryDBValue, secondaryDBValue, key)
         except Exception as e:
             logger.error(e)
     
-    def compareValue(self, rows, primaryDBValue, secondaryDBValue):
+    def compareValue(self, rows, primaryDBValue, secondaryDBValue,primaryKeyValue):
         try:
-            logger.info("compareValue invokes")
+            logger.info("compareValue invokes ")
             for row in rows:
                 counter= int(1)
-                rimaryValue = None
+                primaryValue = None
                 secondaryValue= None
+                primaryColumn = None
+                secondaryColumn= None
                 for col in row:
                     if counter %2 ==0:
+                        secondaryColumn= col
                         secondaryValue = secondaryDBValue.get(col)
                     else:
+                        primaryColumn = col
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
-            
+                if col =='dutiable_value':
+                    primaryValue = str(primaryValue)
+                    secondaryValue = str(secondaryValue)
+                #logger.info(primaryValue)
+                #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
                     logger.critical("Data mismatched ")
-                    scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', self.primaryDB.schemaName ,primaryValue,self.secondaryDB.schemaName,secondaryValue)
+                    scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', primaryColumn ,primaryValue, secondaryColumn ,secondaryValue, primaryKeyValue)
                     self.localDB._insert_Scan_results(scannerResut)
         except Exception as e:
             logger.error(e)
@@ -92,7 +105,7 @@ class ScanProcessor:
                 unique_filename = str(uuid.uuid4())
                 self.csvFileName= tempDir+"/"+unique_filename+".csv"
                 CSVFileUtil.writeDataInCsv(self.csvFileName,exportDataList)   
-                MailHelper.sendMailNotification(self.csvFileName ,readerObj)
+               # MailHelper.sendMailNotification(self.csvFileName ,readerObj)
             else:
                 logger.info('No Mismatch data found on process '+self.processUUID)
         except Exception as e:
