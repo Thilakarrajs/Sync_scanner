@@ -92,6 +92,10 @@ class ScanProcessor:
                 elif primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
                     continue  
                 elif primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
+                    continue
+                elif secondaryValue == None and type(primaryValue) == float and primaryValue == 0.0:
+                    continue  
+                elif secondaryValue == None and type(primaryValue) == int and primaryValue == 0:
                     continue  
                 elif col =='billing_type' and primaryValue == None and secondaryValue == 'Soluship Acct':
                     continue   
