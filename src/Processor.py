@@ -1,6 +1,8 @@
 import uuid
 import os
 import tempfile
+import decimal
+import datetime
 from multiprocessing import Process
 from ScannerResult import ScannerResult
 from CSVFileUtils import CSVFileUtil
@@ -80,14 +82,26 @@ class ScanProcessor:
                         primaryColumn = col
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
-                if col =='dutiable_value':
+                if(col == 'pickup_date'):
+                     primaryValue = primaryValue.date()
+                     secondaryValue =secondaryValue.date()
+                    
+                    
+                if type(primaryValue) == decimal.Decimal and type(secondaryValue) == float:
                     primaryValue = float(primaryValue)
+                elif primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
+                    continue  
+                elif primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
+                    continue  
                 elif col =='billing_type' and primaryValue == None and secondaryValue == 'Soluship Acct':
                     continue   
                 elif col =='actual_cost' and primaryValue == None and secondaryValue == 0.0:
                     continue 
                 elif col =='billed_weight' and primaryValue == None and secondaryValue == 0.0:
                     continue 
+                elif col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
+                    continue
+                
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
