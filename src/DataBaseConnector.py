@@ -51,6 +51,7 @@ class DataBaseConnector:
         try:
             start_time = time.time()
             logger.info("Getting Datas from "+self.host)
+            logger.info('Executing query :' +queryStr)
             self._db_cur.execute(queryStr)
             resultArray = []
             columns = tuple( [d[0]  for d in self._db_cur.description] )
@@ -89,3 +90,28 @@ class DataBaseConnector:
             return dataRows
         except Exception as e:
             logger.error(e)
+            
+    def _create_core_running_status(self, corename, coreUUID):
+        try:
+            start_time = time.time()
+            values = (corename,coreUUID)
+            insertQuery = "INSERT INTO core_running_status ( core_name,core_process_id) VALUES (%s,%s) "
+            self._db_cur.execute(insertQuery, values)
+            self._db_connection.commit()
+            logger.info("data inserted")
+            logger.info("--- %s Total seconds for _create_core_running_status---" % (time.time() - start_time))
+        except Exception as e:
+            logger.error(e)
+    
+    def _update_core_running_status(self, processedLine, offset,coreUUID):
+        try:
+            start_time = time.time()
+            values = (processedLine,offset,coreUUID)
+            updateQuery = "update core_running_status set processed_line=%s, last_offset=%s where core_process_id=%s"
+            self._db_cur.execute(updateQuery, values)
+            self._db_connection.commit()
+            logger.info("data updated")
+           # logger.info("--- %s Total seconds for _create_core_running_status---" % (time.time() - start_time))
+        except Exception as e:
+            logger.error(e)
+            

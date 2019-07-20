@@ -1,6 +1,7 @@
 import time
 from loguru import logger
 from Processor import ScanProcessor
+from multiprocessing import Process
 
 start_time = time.time()
 logger.add("../logs/Sync_scanner.log", rotation="12:00", compression="zip")

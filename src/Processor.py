@@ -5,10 +5,12 @@ from multiprocessing import Process
 from ScannerResult import ScannerResult
 from CSVFileUtils import CSVFileUtil
 from MailSender import MailHelper
-
+from SynScannerUtil import SyncScannerUtil
 from loguru import logger
 from ConfigReader import ConfigurationReader
 from DataBaseConnector import DataBaseConnector
+from builtins import str
+
 
 
 class ScanProcessor:
@@ -19,6 +21,7 @@ class ScanProcessor:
          self.processUUID =None
          self.localDB =None
          self.csvFileName = None
+         self.readerObj = None
 
     def getSecondaryDBValue(self,key, secondaryDBResult):
         for res in secondaryDBResult:
@@ -27,19 +30,22 @@ class ScanProcessor:
                     return value
         return None
         
-    def trigger_process(self,core):
-        logger.info('Syn '+ core.get('core_name') +" core started " )
+    def trigger_process(self,coreUUID,core , offsetValue, processedLine):
+        logger.info('Syn '+ core.get('core_name') + "-"+ coreUUID +" core started with offset value : "+str(offsetValue) )
         try:
             mappingLocation = core.get('mapping_location')
             csvUtil = CSVFileUtil(mappingLocation)
             csvData = csvUtil.getCSVfileValue() 
             primaryQueryStr = core.get('primary_db_query')
+            numberOfRecords = self.readerObj.getConfigValue('APP_CONFIG', 'NUMBER_OF_RECORDS')
+            primaryQueryStr = SyncScannerUtil._build_query(primaryQueryStr,offsetValue ,int(numberOfRecords),core.get('primary_db_primary_key') )
             secondaryQueryStr = core.get('secondary_db_query')
-            primaryDBResult = self.primaryDB._get_scaning_records(core.get('primary_db_query'),core.get('primary_db_primary_key'))
-            secondaryDBResult = self.secondaryDB._get_scaning_records(core.get('secondary_db_query'),core.get('secondary_db_primary_key'))
+            secondaryQueryStr = SyncScannerUtil._build_query(secondaryQueryStr,offsetValue ,self.readerObj.getConfigValue('APP_CONFIG', 'NUMBER_OF_RECORDS'),core.get('secondary_db_primary_key') )
+            primaryDBResult = self.primaryDB._get_scaning_records(primaryQueryStr,core.get('primary_db_primary_key'))
+            secondaryDBResult = self.secondaryDB._get_scaning_records(secondaryQueryStr,core.get('secondary_db_primary_key'))
             #logger.info(primaryDBResult)
             #logger.info(secondaryDBResult)
-            processedLine = 1
+            
             for res in primaryDBResult:
                 #logger.info(res)
                 for key,value in res.items():
@@ -49,12 +55,17 @@ class ScanProcessor:
                         logger.info('Processed Line : '+str(processedLine) +" with "+ str(key))
                         processedLine = 1 + processedLine
                         self.compareValue(csvData, primaryDBValue, secondaryDBValue, key)
+            if(len(primaryDBResult) == 0 and  len(secondaryDBResult) == 0):
+                return 1
+            else:
+                self.localDB._update_core_running_status(processedLine,offsetValue,coreUUID)
+                self.trigger_process(coreUUID,core, offsetValue+int(numberOfRecords),processedLine)
         except Exception as e:
             logger.error(e)
     
     def compareValue(self, rows, primaryDBValue, secondaryDBValue,primaryKeyValue):
         try:
-            logger.info("compareValue invokes ")
+            #logger.info("compareValue invokes ")
             for row in rows:
                 counter= int(1)
                 primaryValue = None
@@ -71,10 +82,16 @@ class ScanProcessor:
                         counter=counter+1
                 if col =='dutiable_value':
                     primaryValue = float(primaryValue)
+                elif col =='billing_type' and primaryValue == None and secondaryValue == 'Soluship Acct':
+                    continue   
+                elif col =='actual_cost' and primaryValue == None and secondaryValue == 0.0:
+                    continue 
+                elif col =='billed_weight' and primaryValue == None and secondaryValue == 0.0:
+                    continue 
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
-                    logger.critical("Data mismatched ")
+                    logger.critical("Data mismatched found!!!")
                     scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', primaryColumn ,primaryValue, secondaryColumn ,secondaryValue, primaryKeyValue)
                     self.localDB._insert_Scan_results(scannerResut)
         except Exception as e:
@@ -84,19 +101,21 @@ class ScanProcessor:
         self.processUUID = str(uuid.uuid4())
         logger.info("Sync Scanner started process id "+self.processUUID)
         try:
-            readerObj = ConfigurationReader() 
-            self.primaryDB = DataBaseConnector(readerObj.getConfigValue('PRIMARY_DB', 'HOST'), readerObj.getConfigValue('PRIMARY_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('PRIMARY_DB', 'PASSWORD'),readerObj.getConfigValue('PRIMARY_DB', 'PORT'), readerObj.getConfigValue('PRIMARY_DB', 'DATABASE_NAME')) 
+            self.readerObj = ConfigurationReader() 
+            self.primaryDB = DataBaseConnector(self.readerObj.getConfigValue('PRIMARY_DB', 'HOST'), self.readerObj.getConfigValue('PRIMARY_DB', 'USER_NAME'),
+                                          self.readerObj.getConfigValue('PRIMARY_DB', 'PASSWORD'),self.readerObj.getConfigValue('PRIMARY_DB', 'PORT'), self.readerObj.getConfigValue('PRIMARY_DB', 'DATABASE_NAME')) 
             
-            self.secondaryDB = DataBaseConnector(readerObj.getConfigValue('SECONDARY_DB', 'HOST'), readerObj.getConfigValue('SECONDARY_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('SECONDARY_DB', 'PASSWORD'),readerObj.getConfigValue('SECONDARY_DB', 'PORT'), readerObj.getConfigValue('SECONDARY_DB', 'DATABASE_NAME'))
+            self.secondaryDB = DataBaseConnector(self.readerObj.getConfigValue('SECONDARY_DB', 'HOST'), self.readerObj.getConfigValue('SECONDARY_DB', 'USER_NAME'),
+                                          self.readerObj.getConfigValue('SECONDARY_DB', 'PASSWORD'),self.readerObj.getConfigValue('SECONDARY_DB', 'PORT'), self.readerObj.getConfigValue('SECONDARY_DB', 'DATABASE_NAME'))
             
-            self.localDB = DataBaseConnector(readerObj.getConfigValue('LOCAL_DB', 'HOST'), readerObj.getConfigValue('LOCAL_DB', 'USER_NAME'),
-                                          readerObj.getConfigValue('LOCAL_DB', 'PASSWORD'),readerObj.getConfigValue('LOCAL_DB', 'PORT'), readerObj.getConfigValue('LOCAL_DB', 'DATABASE_NAME'))
+            self.localDB = DataBaseConnector(self.readerObj.getConfigValue('LOCAL_DB', 'HOST'), self.readerObj.getConfigValue('LOCAL_DB', 'USER_NAME'),
+                                          self.readerObj.getConfigValue('LOCAL_DB', 'PASSWORD'),self.readerObj.getConfigValue('LOCAL_DB', 'PORT'), self.readerObj.getConfigValue('LOCAL_DB', 'DATABASE_NAME'))
             
-            coreList = self.localDB._get_db_records(readerObj.getConfigValue('LOCAL_DB', 'CORE_QUERY'))
+            coreList = self.localDB._get_db_records(self.readerObj.getConfigValue('LOCAL_DB', 'CORE_QUERY'))
             for core in coreList:
-                self.trigger_process(core) 
+                coreUUID = str(uuid.uuid4())
+                self.localDB._create_core_running_status(core.get('core_name'),coreUUID)
+                self.trigger_process(coreUUID,core, 0,1) 
             
             exportDataList = self.localDB._export_scan_results(self.processUUID)
             if(len(exportDataList) > 0) :
@@ -104,7 +123,7 @@ class ScanProcessor:
                 unique_filename = str(uuid.uuid4())
                 self.csvFileName= tempDir+"/"+unique_filename+".csv"
                 CSVFileUtil.writeDataInCsv(self.csvFileName,exportDataList)   
-                MailHelper.sendMailNotification(self.csvFileName ,readerObj)
+                MailHelper.sendMailNotification(self.csvFileName ,self.readerObj)
             else:
                 logger.info('No Mismatch data found on process '+self.processUUID)
         except Exception as e:
