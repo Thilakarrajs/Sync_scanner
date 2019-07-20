@@ -70,8 +70,7 @@ class ScanProcessor:
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
                 if col =='dutiable_value':
-                    primaryValue = str(primaryValue)
-                    secondaryValue = str(secondaryValue)
+                    primaryValue = float(primaryValue)
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
@@ -105,7 +104,7 @@ class ScanProcessor:
                 unique_filename = str(uuid.uuid4())
                 self.csvFileName= tempDir+"/"+unique_filename+".csv"
                 CSVFileUtil.writeDataInCsv(self.csvFileName,exportDataList)   
-               # MailHelper.sendMailNotification(self.csvFileName ,readerObj)
+                MailHelper.sendMailNotification(self.csvFileName ,readerObj)
             else:
                 logger.info('No Mismatch data found on process '+self.processUUID)
         except Exception as e:

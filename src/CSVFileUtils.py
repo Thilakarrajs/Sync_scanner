@@ -24,9 +24,9 @@ class CSVFileUtil:
     def writeDataInCsv (fileName, dataList ):
      logger.info('CSV location '+fileName)
      try:
-         fp = open(fileName, 'w')
-         myFile = csv.writer(fp)
-         myFile.writerows(dataList)
-         fp.close()
+         with open(fileName, 'w', newline='') as outfile:
+             myFile = csv.writer(outfile)
+             myFile.writerows(dataList)
+         outfile.close()
      except Exception as e:
          logger.error(e)    
