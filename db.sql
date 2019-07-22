@@ -2,6 +2,8 @@ CREATE TABLE `scanner_results` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `process_uuid` varchar(45) NOT NULL,
   `scan_core` varchar(45) DEFAULT NULL,
+  `issue_type` varchar(245) DEFAULT NULL,
+  `primary_key_value` varchar(545) DEFAULT NULL,
   `primary_data_schema` varchar(245) DEFAULT NULL,
   `primary_data_value` varchar(545) DEFAULT NULL,
   `secondary_data_schema` varchar(245) DEFAULT NULL,
@@ -9,6 +11,7 @@ CREATE TABLE `scanner_results` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 );
+
 
 
 

@@ -69,8 +69,9 @@ class DataBaseConnector:
     def _insert_Scan_results(self, scannerResut):
         try:
             start_time = time.time()
-            values = (scannerResut.processUUID , scannerResut.typeOfResult,scannerResut.primarySchema,scannerResut.primaryValue,scannerResut.secondarySchema,scannerResut.secondaryValue,scannerResut.primaryKeyValue)
-            insertQuery = "INSERT INTO scanner_results ( process_uuid,scan_core, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value,primary_key_value) VALUES (%s,%s, %s,%s, %s,%s,%s) "
+            values = (scannerResut.processUUID , scannerResut.scanCore, scannerResut.typeOfResult,scannerResut.primarySchema,scannerResut.primaryValue,scannerResut.secondarySchema,scannerResut.secondaryValue,scannerResut.primaryKeyValue)
+            insertQuery = "INSERT INTO scanner_results ( process_uuid,scan_core,issue_type, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value,primary_key_value) VALUES (%s,%s, %s,%s, %s,%s,%s,%s) "
+            logger.info(values)
             self._db_cur.execute(insertQuery, values)
             self._db_connection.commit()
             logger.info("data inserted")
@@ -81,7 +82,7 @@ class DataBaseConnector:
     def _export_scan_results(self, processUUID):
         try:
             start_time = time.time()
-            queryStr= queryStr = 'SELECT process_uuid,scan_core,primary_key_value, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value FROM scanner_results where process_uuid = %s'
+            queryStr= queryStr = 'SELECT process_uuid,scan_core,issue_type,primary_key_value, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value FROM scanner_results where process_uuid = %s'
             values =(processUUID, )
             self._db_cur.execute(queryStr, values)
             dataRows = self._db_cur.fetchall()

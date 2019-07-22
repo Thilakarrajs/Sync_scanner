@@ -56,7 +56,7 @@ class ScanProcessor:
                     if(secondaryDBValue != None):
                         logger.info('Processed Line : '+str(processedLine) +" with "+ str(key))
                         processedLine = 1 + processedLine
-                        self.compareValue(csvData, primaryDBValue, secondaryDBValue, key)
+                        self.compareValue(csvData, primaryDBValue, secondaryDBValue, key,core.get('core_name'))
             if(len(primaryDBResult) == 0 and  len(secondaryDBResult) == 0):
                 return 1
             else:
@@ -65,7 +65,7 @@ class ScanProcessor:
         except Exception as e:
             logger.error(e)
     
-    def compareValue(self, rows, primaryDBValue, secondaryDBValue,primaryKeyValue):
+    def compareValue(self, rows, primaryDBValue, secondaryDBValue,primaryKeyValue,coreName):
         try:
             #logger.info("compareValue invokes ")
             for row in rows:
@@ -85,7 +85,8 @@ class ScanProcessor:
                 if(col == 'pickup_date'):
                      primaryValue = primaryValue.date()
                      secondaryValue =secondaryValue.date()
-                    
+                
+                  
                     
                 if type(primaryValue) == decimal.Decimal and type(secondaryValue) == float:
                     primaryValue = float(primaryValue)
@@ -105,12 +106,13 @@ class ScanProcessor:
                     continue 
                 elif col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
                     continue
-                
+                if(col == 'exchange_rate'):
+                      primaryValue = round(primaryValue,2)
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
                     logger.critical("Data mismatched found!!!")
-                    scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', primaryColumn ,primaryValue, secondaryColumn ,secondaryValue, primaryKeyValue)
+                    scannerResut =  ScannerResult(self.processUUID ,'data-mistmacthed', primaryColumn ,primaryValue, secondaryColumn ,secondaryValue, primaryKeyValue,coreName)
                     self.localDB._insert_Scan_results(scannerResut)
         except Exception as e:
             logger.error(e)
