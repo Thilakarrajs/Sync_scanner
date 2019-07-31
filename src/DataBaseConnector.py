@@ -65,6 +65,28 @@ class DataBaseConnector:
             return resultArray
         except Exception as e:
             logger.error(e)
+     
+    def _get_scaning_missing_records(self,queryStr,primaryKey, listData):
+        try:
+            start_time = time.time()
+            logger.info("Getting Datas from "+self.host)
+            logger.info('Executing query :' +queryStr)
+            tempVar  = ','.join(['%s'] * len(listData))
+            self._db_cur.execute(queryStr % tempVar,
+                tuple(listData))
+            #self._db_cur.execute(queryStr)
+            resultArray = []
+            columns = tuple( [d[0]  for d in self._db_cur.description] )
+            for row in  self._db_cur:
+                    temp = dict(zip(columns, row))
+                    primaryVlaue = temp.get(primaryKey)
+                    resultdict = {primaryVlaue :temp}
+                    resultArray.append(resultdict)
+            logger.info('Total Results: '+str(len(resultArray)))
+            logger.info("--- %s Total seconds for _get_scaning_records---" % (time.time() - start_time))
+            return resultArray
+        except Exception as e:
+            logger.error(e)
             
     def _insert_Scan_results(self, scannerResut):
         try:
@@ -81,8 +103,9 @@ class DataBaseConnector:
             
     def _export_scan_results(self, processUUID):
         try:
+            processUUID = 'SHIPPING_ORDER'
             start_time = time.time()
-            queryStr= queryStr = 'SELECT process_uuid,scan_core,issue_type,primary_key_value, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value FROM scanner_results where process_uuid = %s'
+            queryStr= queryStr = 'SELECT process_uuid,scan_core,issue_type,primary_key_value, primary_data_schema, primary_data_value, secondary_data_schema, secondary_data_value FROM scanner_results where scan_core = %s'
             values =(processUUID, )
             self._db_cur.execute(queryStr, values)
             dataRows = self._db_cur.fetchall()

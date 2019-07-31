@@ -23,7 +23,8 @@ class ScanProcessor:
          self.processUUID =None
          self.localDB =None
          self.csvFileName = None
-         self.readerObj = None
+         self.primaryDBResult = None
+         self.secondaryDBResult = None
 
     def getSecondaryDBValue(self,key, secondaryDBResult):
         for res in secondaryDBResult:
@@ -31,7 +32,15 @@ class ScanProcessor:
                 if(tempKey == key):
                     return value
         return None
+    
+    def getDBKeyValue(self,dBResult):
+        keyList = []
+        for res in dBResult:
+            for tempKey,value in res.items():
+                 keyList.append(tempKey)
         
+        return keyList
+    
     def trigger_process(self,coreUUID,core , offsetValue, processedLine):
         logger.info('Syn '+ core.get('core_name') + "-"+ coreUUID +" core started with offset value : "+str(offsetValue) )
         try:
@@ -45,8 +54,9 @@ class ScanProcessor:
             secondaryQueryStr = SyncScannerUtil._build_query(secondaryQueryStr,offsetValue ,self.readerObj.getConfigValue('APP_CONFIG', 'NUMBER_OF_RECORDS'),core.get('secondary_db_primary_key') )
             primaryDBResult = self.primaryDB._get_scaning_records(primaryQueryStr,core.get('primary_db_primary_key'))
             secondaryDBResult = self.secondaryDB._get_scaning_records(secondaryQueryStr,core.get('secondary_db_primary_key'))
-            #logger.info(primaryDBResult)
-            #logger.info(secondaryDBResult)
+            self.primaryDBResult = self.getDBKeyValue(primaryDBResult) 
+            self.secondaryDBResult = self.getDBKeyValue(secondaryDBResult) 
+             
             
             for res in primaryDBResult:
                 #logger.info(res)
@@ -56,10 +66,43 @@ class ScanProcessor:
                     if(secondaryDBValue != None):
                         logger.info('Processed Line : '+str(processedLine) +" with "+ str(key))
                         processedLine = 1 + processedLine
+                        self.primaryDBResult.remove(key)  
+                        self.secondaryDBResult.remove(key)
                         self.compareValue(csvData, primaryDBValue, secondaryDBValue, key,core.get('core_name'))
+            
+            
+            if(len(self.primaryDBResult) !=0 or len(self.secondaryDBResult)!=0 ):
+                if(len(self.primaryDBResult) !=0):
+                    missingQueryStr= SyncScannerUtil._build_missing_query(secondaryQueryStr,core.get('secondary_db_primary_key'))
+                    missingRecords = self.secondaryDB._get_scaning_missing_records(missingQueryStr,core.get('secondary_db_primary_key'),self.primaryDBResult)
+                    for res in missingRecords:
+                        for key,value in res.items():
+                            self.primaryDBResult.remove(key) 
+                    if(len(self.primaryDBResult) !=0):
+                        for tempValue in self.primaryDBResult:
+                            scannerResut =  ScannerResult(self.processUUID ,'data-not-found', core.get('primary_db_primary_key') ,tempValue,  core.get('secondary_db_primary_key') ,'NOT_FOUND', tempValue,core.get('core_name'))
+                            self.localDB._insert_Scan_results(scannerResut)
+                    #print('value for primary missing')
+                    #print(self.primaryDBResult) 
+                if(len(self.secondaryDBResult) !=0):
+                    missingQueryStr= SyncScannerUtil._build_missing_query(primaryQueryStr,core.get('primary_db_primary_key'))
+                    missingRecords = self.primaryDB._get_scaning_missing_records(missingQueryStr,core.get('primary_db_primary_key'),self.secondaryDBResult)
+                    for res in missingRecords:
+                        for key,value in res.items():
+                            self.secondaryDBResult.remove(key)
+                    if(len(self.secondaryDBResult) !=0):
+                        for tempValue in self.secondaryDBResult:
+                            scannerResut =  ScannerResult(self.processUUID ,'data-not-found', core.get('primary_db_primary_key') ,'NOT_FOUND',  core.get('secondary_db_primary_key') ,tempValue, tempValue,core.get('core_name'))
+                            self.localDB._insert_Scan_results(scannerResut)  
+                    #print('value for secondary missing')
+                    #print(self.secondaryDBResult)
             if(len(primaryDBResult) == 0 and  len(secondaryDBResult) == 0):
                 return 1
             else:
+                logger.info('========================================primaryDBResult '+str(len(self.primaryDBResult)))
+                logger.info('========================================primaryDBResult '+str(len(self.secondaryDBResult)))
+                logger.info(self.primaryDBResult)
+                logger.info(self.secondaryDBResult)
                 self.localDB._update_core_running_status(processedLine,offsetValue,coreUUID)
                 self.trigger_process(coreUUID,core, offsetValue+int(numberOfRecords),processedLine)
         except Exception as e:
@@ -86,11 +129,14 @@ class ScanProcessor:
                      primaryValue = primaryValue.date()
                      secondaryValue =secondaryValue.date()
                 
-                  
-                    
+                if(col == 'scheduled_ship_date'):
+                     primaryValue = primaryValue.date()
+                      
                 if type(primaryValue) == decimal.Decimal and type(secondaryValue) == float:
                     primaryValue = float(primaryValue)
                 elif primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
+                    continue
+                elif primaryValue ==""  and secondaryValue == None:
                     continue  
                 elif primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
                     continue
@@ -107,6 +153,8 @@ class ScanProcessor:
                 elif col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
                     continue
                 if(col == 'exchange_rate'):
+                      primaryValue = round(primaryValue,2)
+                if(col == 'billed_weight'):
                       primaryValue = round(primaryValue,2)
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
@@ -153,7 +201,8 @@ class ScanProcessor:
     def destroyProcessor(self): 
         try:
             if(self.csvFileName != None):
-                os.remove(self.csvFileName)
+                print()
+                #os.remove(self.csvFileName)
             self.primaryDB._close_db_connection()
             self.secondaryDB._close_db_connection()
             self.localDB._close_db_connection()
