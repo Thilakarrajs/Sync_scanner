@@ -125,20 +125,26 @@ class ScanProcessor:
                         primaryColumn = col
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
+                 
                 if(col == 'pickup_date'):
                      primaryValue = primaryValue.date()
                      secondaryValue =secondaryValue.date()
                 
                 if(col == 'scheduled_ship_date'):
                      primaryValue = primaryValue.date()
-                      
+                if(col == 'parent_invoice_id' and primaryValue != None):
+                    primaryValue = int(primaryValue)
+                if(col == 'amount' and primaryValue != None):
+                    primaryValue =  round(primaryValue,2)      
                 if type(primaryValue) == decimal.Decimal and type(secondaryValue) == float:
                     primaryValue = float(primaryValue)
                 elif primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
-                    continue
+                    continue 
                 elif primaryValue ==""  and secondaryValue == None:
                     continue  
                 elif primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
+                    continue
+                elif primaryValue == None and type(secondaryValue) == str and secondaryValue == 'NULL':
                     continue
                 elif secondaryValue == None and type(primaryValue) == float and primaryValue == 0.0:
                     continue  
@@ -152,10 +158,19 @@ class ScanProcessor:
                     continue 
                 elif col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
                     continue
+                if((col == 'close_min' or col == 'ready_min') and primaryValue != None and type(primaryValue) == str and secondaryValue != None and type(secondaryValue) == str):
+                      primaryValue = int (primaryValue)
+                      secondaryValue = int (secondaryValue)
+                if primaryValue != None and type(primaryValue) == str and secondaryValue != None and type(secondaryValue) == str:
+                    primaryValue =primaryValue.rstrip()
+                    secondaryValue =secondaryValue.rstrip()
+                    
                 if(col == 'exchange_rate'):
                       primaryValue = round(primaryValue,2)
                 if(col == 'billed_weight'):
                       primaryValue = round(primaryValue,2)
+                if(col == 'total_weight'):
+                     primaryValue = round(primaryValue,2)
                 #logger.info(primaryValue)
                 #logger.info(secondaryValue)        
                 if primaryValue != secondaryValue :
@@ -198,6 +213,7 @@ class ScanProcessor:
             logger.error(e)
       
     
+    
     def destroyProcessor(self): 
         try:
             if(self.csvFileName != None):
@@ -209,3 +225,21 @@ class ScanProcessor:
             logger.info("Sync Scanner  process id "+self.processUUID +" completed")
         except Exception as e:
             logger.error(e)
+            
+    def export_data_csv(self): 
+        try:
+            exportDataList = self.localDB._export_scan_results(self.processUUID)
+            if(len(exportDataList) > 0) :
+                tempDir =tempfile.gettempdir()
+                unique_filename = str(uuid.uuid4())
+                self.csvFileName= tempDir+"/"+unique_filename+".csv"
+                CSVFileUtil.writeDataInCsv(self.csvFileName,exportDataList)   
+                MailHelper.sendMailNotification(self.csvFileName ,self.readerObj)
+            else:
+                logger.info('No Mismatch data found on process '+self.processUUID)
+        except Exception as e:
+            logger.error(e)
+        except Exception as e:
+            logger.error(e)
+            
+                    
