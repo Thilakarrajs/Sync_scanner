@@ -126,9 +126,32 @@ class ScanProcessor:
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
                  
+                if(col == 'reference2'):
+                    primaryValue = primaryValue.rstrip()
                 if(col == 'pickup_date'):
                      primaryValue = primaryValue.date()
                      secondaryValue =secondaryValue.date()
+                
+                if primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
+                    continue 
+                if primaryValue ==""  and secondaryValue == None:
+                    continue  
+                if primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
+                    continue
+                if primaryValue == None and type(secondaryValue) == str and secondaryValue == 'NULL':
+                    continue
+                if secondaryValue == None and type(primaryValue) == float and primaryValue == 0.0:
+                    continue  
+                if secondaryValue == None and type(primaryValue) == int and primaryValue == 0:
+                    continue  
+                if col =='billing_type' and primaryValue == None and secondaryValue == 'Soluship Acct':
+                    continue   
+                if col =='actual_cost' and primaryValue == None and secondaryValue == 0.0:
+                    continue 
+                if col =='billed_weight' and primaryValue == None and secondaryValue == 0.0:
+                    continue 
+                if col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
+                    continue
                 
                 if(col == 'scheduled_ship_date'):
                      primaryValue = primaryValue.date()
@@ -138,26 +161,6 @@ class ScanProcessor:
                     primaryValue =  round(primaryValue,2)      
                 if type(primaryValue) == decimal.Decimal and type(secondaryValue) == float:
                     primaryValue = float(primaryValue)
-                elif primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
-                    continue 
-                elif primaryValue ==""  and secondaryValue == None:
-                    continue  
-                elif primaryValue == None and type(secondaryValue) == int and secondaryValue == 0:
-                    continue
-                elif primaryValue == None and type(secondaryValue) == str and secondaryValue == 'NULL':
-                    continue
-                elif secondaryValue == None and type(primaryValue) == float and primaryValue == 0.0:
-                    continue  
-                elif secondaryValue == None and type(primaryValue) == int and primaryValue == 0:
-                    continue  
-                elif col =='billing_type' and primaryValue == None and secondaryValue == 'Soluship Acct':
-                    continue   
-                elif col =='actual_cost' and primaryValue == None and secondaryValue == 0.0:
-                    continue 
-                elif col =='billed_weight' and primaryValue == None and secondaryValue == 0.0:
-                    continue 
-                elif col =='leg_order_id' and primaryValue == None and secondaryValue == 0.0:
-                    continue
                 if((col == 'close_min' or col == 'ready_min') and primaryValue != None and type(primaryValue) == str and secondaryValue != None and type(secondaryValue) == str):
                       primaryValue = int (primaryValue)
                       secondaryValue = int (secondaryValue)
