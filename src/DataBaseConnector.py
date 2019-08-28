@@ -71,8 +71,17 @@ class DataBaseConnector:
             start_time = time.time()
             logger.info("Getting Datas from "+self.host)
             logger.info('Executing query :' +queryStr)
+            logger.info(tuple(listData))
             tempVar  = ','.join(['%s'] * len(listData))
-            self._db_cur.execute(queryStr % tempVar,
+            tempstr = None;
+            for i in range(len(listData)):
+                if(i == 0) :
+                    tempstr = "%s"
+                else:        
+                    tempstr = tempstr +",%s"
+            
+            logger.info(tempstr)
+            self._db_cur.execute(queryStr % tempstr,
                 tuple(listData))
             #self._db_cur.execute(queryStr)
             resultArray = []

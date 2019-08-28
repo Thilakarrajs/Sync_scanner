@@ -126,6 +126,8 @@ class ScanProcessor:
                         primaryValue = primaryDBValue.get(col)
                         counter=counter+1
                  
+                if((col == 'open_time'  or col == 'close_time') and primaryValue == None and secondaryValue =='00:00'  ):
+                   continue
                 if(col == 'reference2'):
                     primaryValue = primaryValue.rstrip()
                 if(col == 'pickup_date'):
