@@ -24,8 +24,11 @@ class CSVFileUtil:
     def writeDataInCsv (fileName, dataList ):
      logger.info('CSV location '+fileName)
      try:
+         fieldnames = ['Scan process uuid', 'Module', 'Issue type','Primary Key Value','Old Soluship Compare Column','Old Soluship Compare Column Value','Laravel Soluship Compare Column', 'Laravel Soluship Compare Column value'] 
+         dataList.insert(0, fieldnames)
          with open(fileName, 'w', newline='') as outfile:
              myFile = csv.writer(outfile)
+             #myFile.writeheader(fieldnames)
              myFile.writerows(dataList)
          outfile.close()
      except Exception as e:

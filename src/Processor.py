@@ -128,10 +128,12 @@ class ScanProcessor:
                  
                 if((col == 'open_time'  or col == 'close_time') and primaryValue == None and secondaryValue =='00:00'  ):
                    continue
-                if(col == 'reference2'):
+                if(col == 'reference2' and primaryValue != None) :
                     primaryValue = primaryValue.rstrip()
-                if(col == 'pickup_date'):
+                if(col == 'pickup_date' and primaryValue != None):
                      primaryValue = primaryValue.date()
+                     secondaryValue =secondaryValue.date()
+                if(col == 'pickup_date' and secondaryValue != None):
                      secondaryValue =secondaryValue.date()
                 
                 if primaryValue == None and type(secondaryValue) == float and secondaryValue == 0.0:
@@ -205,7 +207,7 @@ class ScanProcessor:
                 self.localDB._create_core_running_status(core.get('core_name'),coreUUID)
                 self.trigger_process(coreUUID,core, 0,1) 
             
-            exportDataList = self.localDB._export_scan_results(self.processUUID)
+            exportDataList = self.localDB._export_scan_results(self.processUUID )
             if(len(exportDataList) > 0) :
                 tempDir =tempfile.gettempdir()
                 unique_filename = str(uuid.uuid4())
